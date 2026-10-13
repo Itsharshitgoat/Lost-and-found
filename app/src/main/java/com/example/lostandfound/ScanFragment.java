@@ -49,12 +49,15 @@ public class ScanFragment extends Fragment {
     private PreviewView viewFinder;
     private ImageView ivCapturedImage;
     private View vShutterFlash;
-    private Button btnRetake;
+    private View pillActions;
+    private ImageButton btnPillRetake, btnPillUpload;
     private ImageButton btnCapture, btnGallery, btnFlash;
     private ImageCapture imageCapture;
     private ExecutorService cameraExecutor;
     private Camera camera;
     private boolean isFlashOn = false;
+    private Bitmap currentCapturedBitmap = null;
+    private boolean isImageFromGallery = false;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
@@ -80,7 +83,9 @@ public class ScanFragment extends Fragment {
         viewFinder = view.findViewById(R.id.viewFinder);
         ivCapturedImage = view.findViewById(R.id.iv_captured_image);
         vShutterFlash = view.findViewById(R.id.v_shutter_flash);
-        btnRetake = view.findViewById(R.id.btn_retake);
+        pillActions = view.findViewById(R.id.pill_actions);
+        btnPillRetake = view.findViewById(R.id.btn_pill_retake);
+        btnPillUpload = view.findViewById(R.id.btn_pill_upload);
         btnCapture = view.findViewById(R.id.btn_capture);
         btnGallery = view.findViewById(R.id.btn_gallery);
         btnFlash = view.findViewById(R.id.btn_flash);
@@ -94,9 +99,22 @@ public class ScanFragment extends Fragment {
         }
 
         btnCapture.setOnClickListener(v -> takePhoto());
-        btnRetake.setOnClickListener(v -> resetCameraView());
         btnGallery.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
         btnFlash.setOnClickListener(v -> toggleFlash());
+
+        btnPillRetake.setOnClickListener(v -> {
+            if (isImageFromGallery) {
+                pickImageLauncher.launch("image/*");
+            } else {
+                resetCameraView();
+            }
+        });
+
+        btnPillUpload.setOnClickListener(v -> {
+            if (currentCapturedBitmap != null) {
+                saveBitmapToGallery(currentCapturedBitmap);
+            }
+        });
 
         return view;
     }
@@ -148,27 +166,74 @@ public class ScanFragment extends Fragment {
             contentValues.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/LostAndFound");
         }
 
-        ImageCapture.OutputFileOptions outputFileOptions = new ImageCapture.OutputFileOptions
-                .Builder(requireContext().getContentResolver(),
-                         MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                         contentValues)
-                .build();
-
-        imageCapture.takePicture(outputFileOptions, ContextCompat.getMainExecutor(requireContext()), new ImageCapture.OnImageSavedCallback() {
+        imageCapture.takePicture(ContextCompat.getMainExecutor(requireContext()), new ImageCapture.OnImageCapturedCallback() {
             @Override
-            public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                if (getContext() != null) {
-                    Toast.makeText(getContext(), "Photo saved to gallery.", Toast.LENGTH_SHORT).show();
-                    // Keep camera active and ready for the next shot
-                }
+            public void onCaptureSuccess(@NonNull ImageProxy image) {
+                cameraExecutor.execute(() -> {
+                    Bitmap bitmap = imageProxyToBitmap(image);
+
+                    Matrix matrix = new Matrix();
+                    matrix.postRotate(image.getImageInfo().getRotationDegrees());
+                    Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+
+                    requireActivity().runOnUiThread(() -> {
+                        isImageFromGallery = false;
+                        currentCapturedBitmap = rotatedBitmap;
+                        viewFinder.setVisibility(View.GONE);
+                        ivCapturedImage.setVisibility(View.VISIBLE);
+                        ivCapturedImage.setImageBitmap(rotatedBitmap);
+                        pillActions.setVisibility(View.VISIBLE);
+                        if (isFlashOn) {
+                            toggleFlash();
+                        }
+                    });
+
+                    image.close();
+                });
             }
 
             @Override
             public void onError(@NonNull ImageCaptureException exception) {
                 Log.e("ScanFragment", "Photo capture failed: " + exception.getMessage(), exception);
-                if (getContext() != null) {
-                    Toast.makeText(getContext(), "Failed to save photo.", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void saveBitmapToGallery(Bitmap bitmap) {
+        cameraExecutor.execute(() -> {
+            try {
+                long timestamp = System.currentTimeMillis();
+                ContentValues contentValues = new ContentValues();
+                contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, timestamp);
+                contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/LostAndFound");
+                    contentValues.put(MediaStore.MediaColumns.IS_PENDING, 1);
                 }
+
+                Uri imageUri = requireContext().getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues);
+
+                if (imageUri != null) {
+                    java.io.OutputStream fos = requireContext().getContentResolver().openOutputStream(imageUri);
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+                    if (fos != null) fos.close();
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        contentValues.clear();
+                        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                        requireContext().getContentResolver().update(imageUri, contentValues, null, null);
+                    }
+
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), "The item has been saved to gallery successfully", Toast.LENGTH_SHORT).show();
+                        resetCameraView();
+                    });
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                requireActivity().runOnUiThread(() ->
+                    Toast.makeText(getContext(), "Failed to save photo.", Toast.LENGTH_SHORT).show()
+                );
             }
         });
     }
@@ -211,10 +276,12 @@ public class ScanFragment extends Fragment {
                 Bitmap bitmap = BitmapFactory.decodeStream(inputStream, null, options);
 
                 requireActivity().runOnUiThread(() -> {
+                    isImageFromGallery = true;
+                    currentCapturedBitmap = bitmap;
                     viewFinder.setVisibility(View.GONE);
                     ivCapturedImage.setVisibility(View.VISIBLE);
                     ivCapturedImage.setImageBitmap(bitmap);
-                    btnRetake.setVisibility(View.VISIBLE);
+                    pillActions.setVisibility(View.VISIBLE);
                 });
             } catch (Exception e) {
                 e.printStackTrace();
@@ -242,8 +309,10 @@ public class ScanFragment extends Fragment {
 
     private void resetCameraView() {
         ivCapturedImage.setVisibility(View.GONE);
-        btnRetake.setVisibility(View.GONE);
+        pillActions.setVisibility(View.GONE);
         viewFinder.setVisibility(View.VISIBLE);
+        currentCapturedBitmap = null;
+        isImageFromGallery = false;
         isFlashOn = false;
         btnFlash.setColorFilter(ContextCompat.getColor(requireContext(), R.color.brand_text));
         // CameraX handles preview lifecycle automatically when viewFinder becomes visible again
