@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/scanFragment">
+
+    <fragment
+        android:id="@+id/exploreFragment"
+        android:name="com.example.lostandfound.ExploreFragment"
+        android:label="Explore"
+        tools:layout="@layout/fragment_explore" />
+
+    <fragment
+        android:id="@+id/scanFragment"
+        android:name="com.example.lostandfound.ScanFragment"
+        android:label="Scan"
+        tools:layout="@layout/fragment_scan" />
+
+    <fragment
+        android:id="@+id/profileFragment"
+        android:name="com.example.lostandfound.ProfileFragment"
+        android:label="Profile"
+        tools:layout="@layout/fragment_profile" />
+</navigation>
