@@ -26,6 +26,9 @@ public class MainActivity extends AppCompatActivity {
         NavController navController = navHostFragment.getNavController();
         BottomNavigationView bottomNav = findViewById(R.id.bottom_nav_view);
 
+        // Sync the initial state so the correct tab is selected and fragment is shown
+        NavigationUI.setupWithNavController(bottomNav, navController);
+
         bottomNav.setOnItemSelectedListener(item -> {
             NavOptions navOptions = new NavOptions.Builder()
                     .setLaunchSingleTop(true)
