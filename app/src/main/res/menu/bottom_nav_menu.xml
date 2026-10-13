@@ -2,14 +2,14 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/exploreFragment"
-        android:icon="@android:drawable/ic_menu_compass"
+        android:icon="@drawable/ic_compass"
         android:title="" />
     <item
         android:id="@+id/scanFragment"
-        android:icon="@android:drawable/ic_menu_camera"
+        android:icon="@drawable/ic_camera"
         android:title="" />
     <item
         android:id="@+id/profileFragment"
-        android:icon="@android:drawable/ic_menu_myplaces"
+        android:icon="@drawable/ic_user"
         android:title="" />
 </menu>

@@ -123,24 +123,26 @@ public class ScanFragment extends Fragment {
         imageCapture.takePicture(ContextCompat.getMainExecutor(requireContext()), new ImageCapture.OnImageCapturedCallback() {
             @Override
             public void onCaptureSuccess(@NonNull ImageProxy image) {
-                Bitmap bitmap = imageProxyToBitmap(image);
+                cameraExecutor.execute(() -> {
+                    Bitmap bitmap = imageProxyToBitmap(image);
 
-                // Adjust rotation
-                Matrix matrix = new Matrix();
-                matrix.postRotate(image.getImageInfo().getRotationDegrees());
-                Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                    // Adjust rotation off the main thread to prevent UI lag
+                    Matrix matrix = new Matrix();
+                    matrix.postRotate(image.getImageInfo().getRotationDegrees());
+                    Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
 
-                requireActivity().runOnUiThread(() -> {
-                    viewFinder.setVisibility(View.GONE);
-                    ivCapturedImage.setVisibility(View.VISIBLE);
-                    ivCapturedImage.setImageBitmap(rotatedBitmap);
-                    btnRetake.setVisibility(View.VISIBLE);
-                    if (isFlashOn) {
-                        toggleFlash();
-                    }
+                    requireActivity().runOnUiThread(() -> {
+                        viewFinder.setVisibility(View.GONE);
+                        ivCapturedImage.setVisibility(View.VISIBLE);
+                        ivCapturedImage.setImageBitmap(rotatedBitmap);
+                        btnRetake.setVisibility(View.VISIBLE);
+                        if (isFlashOn) {
+                            toggleFlash();
+                        }
+                    });
+
+                    image.close();
                 });
-
-                image.close();
             }
 
             @Override
@@ -171,17 +173,50 @@ public class ScanFragment extends Fragment {
     }
 
     private void displayImageFromGallery(Uri uri) {
-        try {
-            InputStream inputStream = requireContext().getContentResolver().openInputStream(uri);
-            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-            viewFinder.setVisibility(View.GONE);
-            ivCapturedImage.setVisibility(View.VISIBLE);
-            ivCapturedImage.setImageBitmap(bitmap);
-            btnRetake.setVisibility(View.VISIBLE);
-        } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(getContext(), "Failed to load image", Toast.LENGTH_SHORT).show();
+        cameraExecutor.execute(() -> {
+            try {
+                InputStream inputStream = requireContext().getContentResolver().openInputStream(uri);
+
+                // Decode bounds first to avoid OOM errors
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                BitmapFactory.decodeStream(requireContext().getContentResolver().openInputStream(uri), null, options);
+
+                // Calculate inSampleSize (scale factor)
+                options.inSampleSize = calculateInSampleSize(options, 1024, 1024);
+                options.inJustDecodeBounds = false;
+
+                // Decode full image with sample size
+                Bitmap bitmap = BitmapFactory.decodeStream(inputStream, null, options);
+
+                requireActivity().runOnUiThread(() -> {
+                    viewFinder.setVisibility(View.GONE);
+                    ivCapturedImage.setVisibility(View.VISIBLE);
+                    ivCapturedImage.setImageBitmap(bitmap);
+                    btnRetake.setVisibility(View.VISIBLE);
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                requireActivity().runOnUiThread(() ->
+                    Toast.makeText(getContext(), "Failed to load image", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
+    }
+
+    private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
         }
+        return inSampleSize;
     }
 
     private void resetCameraView() {

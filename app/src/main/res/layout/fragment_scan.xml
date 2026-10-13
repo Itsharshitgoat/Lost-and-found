@@ -75,7 +75,7 @@
             android:layout_height="60dp"
             android:background="@drawable/circle_white"
             android:elevation="2dp"
-            android:src="@android:drawable/ic_menu_gallery"
+            android:src="@drawable/ic_gallery"
             app:tint="@color/brand_text" />
 
         <Space
@@ -89,7 +89,9 @@
             android:layout_height="84dp"
             android:background="@drawable/capture_button"
             android:elevation="4dp"
-            android:src="@android:drawable/ic_menu_camera"
+            android:padding="20dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_camera"
             app:tint="@color/white" />
 
         <Space
@@ -103,7 +105,7 @@
             android:layout_height="60dp"
             android:background="@drawable/circle_white"
             android:elevation="2dp"
-            android:src="@android:drawable/ic_menu_info_details"
+            android:src="@drawable/ic_flash_off"
             app:tint="@color/brand_text" />
     </LinearLayout>
 
