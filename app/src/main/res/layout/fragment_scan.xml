@@ -44,6 +44,13 @@
             android:scaleType="centerCrop"
             android:visibility="gone" />
 
+        <View
+            android:id="@+id/v_shutter_flash"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/black"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/btn_retake"
             android:layout_width="wrap_content"
@@ -74,7 +81,6 @@
             android:layout_width="60dp"
             android:layout_height="60dp"
             android:background="@drawable/circle_white"
-            android:elevation="2dp"
             android:src="@drawable/ic_gallery"
             app:tint="@color/brand_text" />
 
@@ -88,7 +94,6 @@
             android:layout_width="84dp"
             android:layout_height="84dp"
             android:background="@drawable/capture_button"
-            android:elevation="4dp"
             android:padding="20dp"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_camera"
@@ -104,7 +109,6 @@
             android:layout_width="60dp"
             android:layout_height="60dp"
             android:background="@drawable/circle_white"
-            android:elevation="2dp"
             android:src="@drawable/ic_flash_off"
             app:tint="@color/brand_text" />
     </LinearLayout>

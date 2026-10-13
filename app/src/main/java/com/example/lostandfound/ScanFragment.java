@@ -4,9 +4,12 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.content.ContentValues;
 import android.graphics.Matrix;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,6 +18,8 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.Toast;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -43,6 +48,7 @@ public class ScanFragment extends Fragment {
 
     private PreviewView viewFinder;
     private ImageView ivCapturedImage;
+    private View vShutterFlash;
     private Button btnRetake;
     private ImageButton btnCapture, btnGallery, btnFlash;
     private ImageCapture imageCapture;
@@ -73,6 +79,7 @@ public class ScanFragment extends Fragment {
 
         viewFinder = view.findViewById(R.id.viewFinder);
         ivCapturedImage = view.findViewById(R.id.iv_captured_image);
+        vShutterFlash = view.findViewById(R.id.v_shutter_flash);
         btnRetake = view.findViewById(R.id.btn_retake);
         btnCapture = view.findViewById(R.id.btn_capture);
         btnGallery = view.findViewById(R.id.btn_gallery);
@@ -120,34 +127,48 @@ public class ScanFragment extends Fragment {
     private void takePhoto() {
         if (imageCapture == null) return;
 
-        imageCapture.takePicture(ContextCompat.getMainExecutor(requireContext()), new ImageCapture.OnImageCapturedCallback() {
+        // Visual flash animation for feedback
+        vShutterFlash.setVisibility(View.VISIBLE);
+        vShutterFlash.setAlpha(1f);
+        vShutterFlash.animate()
+                .alpha(0f)
+                .setDuration(250)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        vShutterFlash.setVisibility(View.GONE);
+                    }
+                }).start();
+
+        long timestamp = System.currentTimeMillis();
+        ContentValues contentValues = new ContentValues();
+        contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, timestamp);
+        contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+            contentValues.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/LostAndFound");
+        }
+
+        ImageCapture.OutputFileOptions outputFileOptions = new ImageCapture.OutputFileOptions
+                .Builder(requireContext().getContentResolver(),
+                         MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                         contentValues)
+                .build();
+
+        imageCapture.takePicture(outputFileOptions, ContextCompat.getMainExecutor(requireContext()), new ImageCapture.OnImageSavedCallback() {
             @Override
-            public void onCaptureSuccess(@NonNull ImageProxy image) {
-                cameraExecutor.execute(() -> {
-                    Bitmap bitmap = imageProxyToBitmap(image);
-
-                    // Adjust rotation off the main thread to prevent UI lag
-                    Matrix matrix = new Matrix();
-                    matrix.postRotate(image.getImageInfo().getRotationDegrees());
-                    Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-
-                    requireActivity().runOnUiThread(() -> {
-                        viewFinder.setVisibility(View.GONE);
-                        ivCapturedImage.setVisibility(View.VISIBLE);
-                        ivCapturedImage.setImageBitmap(rotatedBitmap);
-                        btnRetake.setVisibility(View.VISIBLE);
-                        if (isFlashOn) {
-                            toggleFlash();
-                        }
-                    });
-
-                    image.close();
-                });
+            public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
+                if (getContext() != null) {
+                    Toast.makeText(getContext(), "Photo saved to gallery.", Toast.LENGTH_SHORT).show();
+                    // Keep camera active and ready for the next shot
+                }
             }
 
             @Override
             public void onError(@NonNull ImageCaptureException exception) {
                 Log.e("ScanFragment", "Photo capture failed: " + exception.getMessage(), exception);
+                if (getContext() != null) {
+                    Toast.makeText(getContext(), "Failed to save photo.", Toast.LENGTH_SHORT).show();
+                }
             }
         });
     }

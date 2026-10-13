@@ -9,17 +9,20 @@
         android:id="@+id/exploreFragment"
         android:name="com.example.lostandfound.ExploreFragment"
         android:label="Explore"
-        tools:layout="@layout/fragment_explore" />
+        tools:layout="@layout/fragment_explore">
+    </fragment>
 
     <fragment
         android:id="@+id/scanFragment"
         android:name="com.example.lostandfound.ScanFragment"
         android:label="Scan"
-        tools:layout="@layout/fragment_scan" />
+        tools:layout="@layout/fragment_scan">
+    </fragment>
 
     <fragment
         android:id="@+id/profileFragment"
         android:name="com.example.lostandfound.ProfileFragment"
         android:label="Profile"
-        tools:layout="@layout/fragment_profile" />
+        tools:layout="@layout/fragment_profile">
+    </fragment>
 </navigation>
